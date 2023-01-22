@@ -64,15 +64,17 @@ class deck_info():
     name : str
     key_card : str
     total : int
-    top : bool
-    def __init__(self,name,key_card ,total,top = False):
+    top : int
+    player : str
+    def __init__(self,name,key_card ,total,top = False,player = None):
         self.name = name + " x"+str(total)
         self.image = self.get_image_of_card(key_card)[0]
         self.total = total
         self.top = top
+        self.player = player
     def get_image_of_card(self,card_name):
         card_name = card_name.lower()
-        return df.loc[df['name'] == card_name]["image_cropped"].values
+        return df_cards.loc[df_cards['name'] == card_name]["image_cropped"].values
 
 def apply_zoom(total,totals):
     num_decks = sum(totals)
@@ -99,24 +101,34 @@ def define_zoom_and_angles(totals,names):
         positions.append((math.cos(math.radians(res)) * k,math.sin(math.radians(res)) * k))
         zooms.append(apply_zoom(totals[i],totals))
     return positions,zooms
-
-def plot_graphic(names,images,totals,positions,zooms,title):
-    plt.title(title)
+def define_champion(decks):
+    for deck in decks:
+        if deck.top == 1:
+            return deck.player,deck.name 
+def plot_graphic(names,images,totals,positions,zooms,title,decks):
+    fig = plt.figure()
+    fig.patch.set_facecolor((0.1,0.2,0.2))
+    champ,deck_c = define_champion(decks)
+    plt.title(("campeão : " + champ+"({})".format(deck_c[:-3])).upper(),fontsize=14,color="green")
+    plt.suptitle((title[:-4]+" "+str(sum(totals))+" jogadores").upper(),fontsize=18, y=1,color="white")
     plt.gca().axis("equal")
+
     wedges, texts = plt.pie(totals, startangle=90, labels=names,
                             wedgeprops = { 'linewidth': 2, "edgecolor" :"black","fill":False, 'linestyle': 'dashed'})
-
-    apply_images(wedges,images,positions,zooms)
     
-    #plt.figure(figsize=(18,12))
-    #line, = plt.plot([1, 2, 3])
-    # Set both x- and y-axis limits to [0, 10] instead of default [0, 1]
-    #plt.savefig("histogram_img", dpi=300)
-    #plt.rcParams['figure.figsize'] = [10, 10]
-    plt.show()
+    apply_images(wedges,images,positions,zooms)
+    i = 0
+    for text in texts:
+        if decks[i].top == 0: 
+            text.set_color('gold')
+        else:
+            text.set_color('w')
+        i += 1
+
+    plt.savefig(title[:-4]+".png", dpi=300)
     #plt.show()
 
-def get_image(decks):    
+def get_image(decks,title):    
     
     decks.sort(key=lambda x: x.total, reverse=False)
 
@@ -125,20 +137,17 @@ def get_image(decks):
     images,names,totals = [x.image for x in decks], [x.name for x in decks], [x.total for x in decks]
     positions,zooms= define_zoom_and_angles(totals,names)
 
-    plot_graphic(names,images,totals,positions,zooms,'TOP 5 - 14/01/2022')
+    plot_graphic(names,images,totals,positions,zooms,title,decks)
      
-def add_deck(deck_name,key_card,total,top = False):
-    decks.append(deck_info(deck_name,key_card,total,top))
+def add_deck(deck_name,key_card,total,top = False,player = None):
+    decks.append(deck_info(deck_name,key_card,total,top,player))
 
 #flask
 
-app = Flask(__name__)
-#variables
-df = pd.read_csv('https://drive.google.com/u/0/uc?id=1Bv1vFnb6ogY6-Atwguvb-dulwgtST4bK&export=download')
-df = df[["name","image_cropped"]]
+#app = Flask(__name__)
+
 
 #setup
-decks = []
 '''decks.append(deck_info("swordsoul","swordsoul of mo ye",1))
 decks.append(deck_info("tearlaments","tearlaments rulkallos",4))
 decks.append(deck_info("naturia","naturia sacred tree",1))
@@ -168,11 +177,53 @@ decks.append(deck_info("burning abyss","dante, traveler of the burning abyss",1)
 decks.append(deck_info("altergeist","altergeist multifaker",1))    
 decks.append(deck_info("invoked branded","aleister the invoker",1))    
 decks.append(deck_info("scareclaw ","scareclaw tri-heart",1))    '''
-add_deck("tearlaments","tearlaments rulkallos",2)
-add_deck("spright","spright blue",2)
-add_deck("dragon link","striker dragon",1)
 
-get_image(decks)
+#variables
+df_cards = pd.read_csv('https://drive.google.com/u/0/uc?id=1Bv1vFnb6ogY6-Atwguvb-dulwgtST4bK&export=download')
+df_cards = df_cards[["name","image_cropped"]]
+file_name = input("file name : ")
+top_count = int(input('top cut : '))
+df_tourment = pd.read_csv(file_name)
+decks = []
+unique_decks = []
+unique_decks_names = []
+for index, row in df_tourment.iterrows():
+    deck = row["deck"]
+    if deck not in unique_decks_names:
+        unique_decks_names.append(deck)
+        unique_decks.append((deck,row["image card"],1,row["posição"],row["jogador"]))
+    else:
+        unique_decks[unique_decks_names.index(deck)] = (unique_decks[unique_decks_names.index(deck)][0],
+                                                        unique_decks[unique_decks_names.index(deck)][1],
+                                                        unique_decks[unique_decks_names.index(deck)][2] + 1,
+                                                        unique_decks[unique_decks_names.index(deck)][3],
+                                                        unique_decks[unique_decks_names.index(deck)][4])
+
+for deck in unique_decks:
+    add_deck(deck[0],deck[1],deck[2],top=deck[3],player=deck[4])
+
+
+get_image(decks,file_name)
+decks = []
+unique_decks = []
+unique_decks_names = []
+for index, row in df_tourment.iterrows():
+    deck = row["deck"]
+    if row["posição"] > top_count:
+        continue
+    if deck not in unique_decks_names:
+        unique_decks_names.append(deck)
+        unique_decks.append((deck,row["image card"],1,row["posição"],row["jogador"]))
+    else:
+        unique_decks[unique_decks_names.index(deck)] = (unique_decks[unique_decks_names.index(deck)][0],
+                                                        unique_decks[unique_decks_names.index(deck)][1],
+                                                        unique_decks[unique_decks_names.index(deck)][2] + 1,
+                                                        unique_decks[unique_decks_names.index(deck)][3],
+                                                        unique_decks[unique_decks_names.index(deck)][4])
+for deck in unique_decks:
+    add_deck(deck[0],deck[1],deck[2],top=deck[3],player=deck[4])
+
+get_image(decks,"TOP "+file_name)
 
 '''@app.route('/')
 def home():
